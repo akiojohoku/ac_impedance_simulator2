@@ -160,7 +160,7 @@
     <h2>ベクトル図（フェーザ図）</h2>
     <div id="vecWrap"><svg id="vecSvg" viewBox="0 0 640 560" preserveAspectRatio="xMidYMid meet" aria-label="電圧と電流のベクトル図"></svg></div>
     <div id="legend"></div>
-    <div class="basisNote">基準軸（＋x 方向）：並列部分の電圧 <b>V<sub>bc</sub></b>。破線はベクトルの合成（平行四辺形）。ベクトルの長さは実際の大きさに比例（ωを全範囲で動かしたときの最大値が図の半径。左下のスケールバー参照）。電源電圧の振幅 V₀ = 10 V。</div>
+    <div class="basisNote">基準軸（＋x 方向）：並列部分の電圧 <b>V<sub>bc</sub></b>。破線はベクトルの合成（平行四辺形）。ベクトルの長さは実際の大きさに比例（左下のスケールバー参照）。同位相のベクトルが重なるときは、見やすさのため電流・電圧の縮尺を自動調整します（スケールバーに反映）。電源電圧の振幅 V₀ = 10 V。</div>
   </section>
 
   <!-- 右パネル：数値＋共振カーブ -->
@@ -293,9 +293,9 @@ function drawCircuit(cirId){
   const yTop=70, yB1=42, yB2=100, xL=22, xR=318, xN1=140, xN2=252, yBot=200;
 
   // 導線
-  wire(svg, `M${xL},${yTop} H55`);
+  wire(svg, `M${xL},${yTop} H62`);
   drawElement(svg, cir.series, 88, yTop);
-  wire(svg, `M121,${yTop} H${xN1}`);
+  wire(svg, `M114,${yTop} H${xN1}`);
   // 並列部
   wire(svg, `M${xN1},${yB1} V${yB2}`);
   wire(svg, `M${xN2},${yB1} V${yB2}`);
@@ -379,7 +379,24 @@ function drawVectors(sol, iMaxR, vMaxR){
   // スケール：ωを全範囲で動かしたときの最大値を基準に固定
   // → スライダー操作でベクトルの長さが実際の大きさに応じて変化する
   const rad = Math.min(W,H)/2 - 55;
-  const sV = rad/vMaxR, sI = rad/iMaxR;
+  let sV = rad/vMaxR, sI = rad/iMaxR;
+
+  // 同位相で必ず重なるペア（回路①: I と V_ab ／ 回路②③: I_R と V_bc）の
+  // 描画長がほぼ等しいときは、縮尺を縮めて長さに差をつけ、両方見えるようにする。
+  // スケールバーも同じ縮尺で描くため、図の読み取りは正しいまま。
+  const cir = sol.cir;
+  {
+    const pairI = cir.series==="R" ? sol.I : (cir.par[0]==="R" ? sol.Ib1 : sol.Ib2);
+    const pairV = cir.series==="R" ? sol.Vab : sol.Vbc;
+    const lenI = C.abs(pairI)*sI, lenV = C.abs(pairV)*sV;
+    if(lenI>1e-6 && lenV>1e-6){
+      const r = lenI/lenV;
+      if(r>0.70 && r<1.43){
+        if(r<=1) sI *= 0.70/r;   // 電流側を縮めて 0.70 倍の長さに
+        else     sV *= r/1.43;   // 電圧側を縮めて電流が 1.43 倍になるように
+      }
+    }
+  }
   const P = (z,s)=>[ox + z[0]*s, oy - z[1]*s];
 
   // 目盛グリッド・軸
@@ -416,7 +433,6 @@ function drawVectors(sol, iMaxR, vMaxR){
   dashLine(svg, t2[0],t2[1], tI[0],tI[1], "var(--iA)");
 
   // 電流ベクトル
-  const cir = sol.cir;
   arrow(svg, ox,oy, t1[0]-ox, t1[1]-oy, "var(--iA)", 3, "I"+sub(cir.par[0]));
   arrow(svg, ox,oy, t2[0]-ox, t2[1]-oy, "var(--iB)", 3, "I"+sub(cir.par[1]));
   arrow(svg, ox,oy, tI[0]-ox, tI[1]-oy, "var(--iT)", 4.5, "I");
